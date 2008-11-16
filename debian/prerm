@@ -18,7 +18,14 @@ set -e
 
 
 case "$1" in
-    remove|upgrade|deconfigure)
+    remove|deconfigure)
+		GEM=`which gem`
+		if [ "." != "$GEM." ]; then
+			$GEM uninstall rubygame
+		fi
+    ;;
+
+    upgrade)
     ;;
 
     failed-upgrade)

@@ -20,6 +20,10 @@ set -e
 
 case "$1" in
     configure)
+		GEM=`which gem`
+		if [ "." != "$GEM." ]; then
+			$GEM install /tmp/rubygame.gem
+		fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

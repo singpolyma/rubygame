@@ -1,11 +1,17 @@
 #!/bin/sh
 
+VERSION="2.4.0"
+
 # Parse options
 while [ $# -gt 0 ]; do
 	optarg=`expr "x$1" : 'x[^=]*=\(.*\)'`
 	case "$1" in
 		--prefix=*)
 			PREFIX=$optarg
+			shift
+		;;
+		--packaging)
+			PACKAGING=1
 			shift
 		;;
 		*)
@@ -42,25 +48,43 @@ else
 fi
 
 # FIXME: Such a hack... really should translate Rakefile
-
 RAKE=`which rake`
 if [ "." = "$RAKE." ]; then
 	echo "ERROR: rake not found" 1>&2
 	exit 1
 fi
 
+GEMBUILD=""
+GEMINSTALL=""
+GEMREMOVE=""
+GEM=`which gem` # XXX: we're assuming which is in PATH
+if [ "." != "$GEM." ]; then
+	GEMBUILD="$RAKE gem"
+	GEMREMOVE="$GEM uninstall rubygame"
+	if [ "." = "$PACKAGING." ]; then
+		GEMINSTALL="$GEM install pkg/rubygame-$VERSION.gem"
+	else
+		#GEMINSTALL="cp xgame-$VERSION.gem '\$(prefix)/$INSTALLDIR/xgame.gem'"
+		GEMINSTALL="mkdir -p '\$(prefix)/../tmp/'; cp pkg/rubygame-$VERSION.gem '\$(prefix)/../tmp/rubygame.gem'" # XXX: This assumes prefix is only one level deeper than we want... hmm...
+	fi
+fi
+
 cat 1>Makefile <<EOT
 prefix=$PREFIX
-all:
+all: build gem
+build:
 	$RAKE build
-gem:
-	$RAKE gem
+gem: build
+	$GEMBUILD
 clean:
 	$RAKE clean
 distclean: clean
+	rm -rf pkg/
 	rm -f Makefile
 install:
 	RUBYLIBDIR=\$(prefix)/$LIBDIR RUBYARCHDIR=\$(prefix)/$ARCHDIR $RAKE install
+	$GEMINSTALL
 uninstall:
 	$RAKE uninstall
+	$GEMREMOVE
 EOT
