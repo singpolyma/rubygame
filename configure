@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# FIXME: Such a hack... really should translate Rakefile
+
+cat 1>Makefile <<EOT
+all:
+	rake build
+gem:
+	rake gem
+clean:
+	rake clean
+install:
+	rake install
+uninstall:
+	rake uninstall
+EOT
