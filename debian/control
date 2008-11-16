@@ -1,0 +1,13 @@
+Source: librubygame
+Priority: extra
+Maintainer: Stephen Paul Weber <singpolyma@singpolyma.net>
+Build-Depends: debhelper (>= 5), rake, ruby (>= 1.8.0)
+Standards-Version: 3.7.2
+Section: libs
+
+Package: librubygame
+Section: libs
+Architecture: any
+Depends: ruby (>= 1.8.0), ${shlibs:Depends}, ${misc:Depends}
+Description: Flexible game creation library for Ruby
+ Rubygame is a cross-platform game-development extension and library for Ruby, inspired by Pygame. The purpose of Rubygame is to empower game developers by providing them with powerful and flexible high-level concepts. Instead of worrying about low-level technical details, you can focus your energy on more interesting things (like making a fun game). 

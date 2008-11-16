@@ -1,16 +1,66 @@
 #!/bin/sh
 
+# Parse options
+while [ $# -gt 0 ]; do
+	optarg=`expr "x$1" : 'x[^=]*=\(.*\)'`
+	case "$1" in
+		--prefix=*)
+			PREFIX=$optarg
+			shift
+		;;
+		*)
+			shift
+		;;
+	esac
+done
+
+# Verify presence of ruby
+RUBY=`which ruby` # XXX: we're assuming which is in PATH
+if [ "." = "$RUBY." ]; then
+	echo "ERROR: ruby not found" 1>&2
+	exit 1
+else
+	echo "Ruby found at $RUBY"
+fi
+
+# Verify ruby version
+RUBYMAJOR=`$RUBY -v | cut -d' ' -f2 | cut -b1`
+RUBYMINOR=`$RUBY -v | cut -d' ' -f2 | cut -b3`
+if [ $RUBYMAJOR -lt 1 -o $RUBYMINOR -lt 8 ]; then
+	echo "ERROR: ruby version $RUBYMAJOR.$RUBYMINOR.x too low, need at least 1.8.0" 1>&2
+	exit 1
+else
+	echo "Ruby version $RUBYMAJOR.$RUBYMINOR.x"
+fi
+
+if [ "$PREFIX." = "." -o "$PREFIX" = "/usr/local" ]; then
+	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitedir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitearchdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+else
+	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['rubylibdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['archdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+fi
+
 # FIXME: Such a hack... really should translate Rakefile
 
+RAKE=`which rake`
+if [ "." = "$RAKE." ]; then
+	echo "ERROR: rake not found" 1>&2
+	exit 1
+fi
+
 cat 1>Makefile <<EOT
+prefix=$PREFIX
 all:
-	rake build
+	$RAKE build
 gem:
-	rake gem
+	$RAKE gem
 clean:
-	rake clean
+	$RAKE clean
+distclean: clean
+	rm -f Makefile
 install:
-	rake install
+	RUBYLIBDIR=\$(prefix)/$LIBDIR RUBYARCHDIR=\$(prefix)/$ARCHDIR $RAKE install
 uninstall:
-	rake uninstall
+	$RAKE uninstall
 EOT
