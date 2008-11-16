@@ -5,28 +5,99 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# This script is messy, but it demonstrates almost all of
-# Rubygame's features, so it acts as a test program to see
-# whether your installation of Rubygame is working.
+
+# 
+# This demo shows a simple example of game structure.
+# It demonstrates how to use (or, one of many ways to use):
+# 
+# * Clock to limit the maximum framerate (to keep CPU usage low)
+# 
+# * Sprites to display player characters on the screen
+# 
+# * EventQueue, EventHandler, and the HasEventHandler mixin to
+#   receive events from the keyboard, joystick, etc.
+# 
+# * A custom Game class to integrate it all and provide the game
+#   structure and main loop.
+# 
+
 
 require "rubygame"
-include Rubygame
 
+
+# Include these modules so we can type "Surface" instead of
+# "Rubygame::Surface", etc. Purely for convenience/readability.
+
+include Rubygame
+include Rubygame::Events
+include Rubygame::EventActions
+include Rubygame::EventTriggers
+
+
+# Make text we output appear on the console right away.
 $stdout.sync = true
 
-# Use smooth scaling/rotating? You can toggle this with S key
-$smooth = false                 
 
+# Use smooth scaling/rotating? You can toggle this with S key
+$smooth = false
+
+
+# Make sure everything is set up properly.
 Rubygame.init()
 
-queue = EventQueue.new() # new EventQueue with autofetch
-queue.ignore = [MouseMotionEvent]
-clock = Clock.new()
-clock.target_framerate = 50
 
-unless ($gfx_ok = (VERSIONS[:sdl_gfx] != nil))
-  raise "SDL_gfx is not available. Bailing out." 
+# SDL_gfx is required for drawing shapes and rotating/zooming Surfaces.
+$gfx_ok = (VERSIONS[:sdl_gfx] != nil)
+
+unless ( $gfx_ok )
+	raise "You must have SDL_gfx support to run this demo!"
 end
+
+
+# Activate all joysticks so that their button press
+# events, etc. appear in the event queue.
+Joystick.activate_all
+
+
+
+
+########################
+# CUSTOM EVENT CLASSES #
+########################
+
+
+# Holds information about the clock, created each frame.
+class ClockTicked
+	attr_reader :time, :framerate
+
+	def initialize( ms, framerate )
+		@time = ms / 1000.0
+		@framerate = framerate
+	end
+end
+
+# Signals sprites to draw themselves on the screen
+class DrawSprites
+	attr_accessor :screen
+	def initialize( screen )
+		@screen = screen
+	end
+end
+
+# Signals sprites to erase themselves from the screen
+class UndrawSprites
+	attr_accessor :screen, :background
+	def initialize( screen, background )
+		@screen, @background = screen, background
+	end
+end
+
+
+
+
+######################
+# AUTOLOADING IMAGES #
+######################
 
 
 # Set up autoloading for Surfaces. Surfaces will be loaded automatically
@@ -36,13 +107,23 @@ end
 Surface.autoload_dirs = [ File.dirname(__FILE__) ]
 
 
+
+
+#################
+# PANDA CLASSES #
+#################
+
+
+# Base class for our panda sprites. This provides the core
+# logic for initialization and movement of the sprites.
 class Panda
 	include Sprites::Sprite
-  
-  # Autoload the "panda.png" image and set its colorkey
+	include EventHandler::HasEventHandler
+
+	# Autoload the "panda.png" image and set its colorkey
 	@@pandapic = Surface["panda.png"]
 	@@pandapic.set_colorkey(@@pandapic.get_at(0,0))
-  
+
 	attr_accessor :vx, :vy, :speed
 	def initialize(x,y)
 		super()
@@ -50,24 +131,29 @@ class Panda
 		@speed = 40
 		@image = @@pandapic
 		@rect = Rect.new(x,y,*@@pandapic.size)
+
 	end
 
 	def update_image(time)
 		# do nothing in base class, rotate/zoom image in subs
 	end
 
-	def update(time)
+	def update( event )
 		x,y = @rect.center
-		self.update_image(time)
+		self.update_image( event.time * 1000.0 )
 		@rect.size = @image.size
-		
-		base = @speed * time/1000.0
+
+		base = @speed * event.time
 		@rect.centerx = x + @vx * base
 		@rect.centery = y + @vy * base
 	end
 
 end
 
+
+# A panda that spins around and around. The update_image
+# method is called once per frame to generate the new
+# image (in this case by rotating the original image).
 class SpinnyPanda < Panda
 	attr_accessor :rate
 	def initialize(x,y,rate=0.1)
@@ -82,6 +168,9 @@ class SpinnyPanda < Panda
 	end
 end
 
+
+# A panda that grows and shrinks in size. Like the other
+# panda classes, it updates its image every frame.
 class ExpandaPanda < Panda
 	attr_accessor :rate
 	def initialize(x,y,rate=0.1)
@@ -97,6 +186,9 @@ class ExpandaPanda < Panda
 	end
 end
 
+
+# A panda that wobbles and jiggles. Like the other
+# panda classes, it updates its image every frame.
 class WobblyPanda < Panda
 	attr_accessor :rate
 	def initialize(x,y,rate=0.1)
@@ -113,184 +205,348 @@ class WobblyPanda < Panda
 	end
 end
 
-pandas = Sprites::Group.new
-pandas.extend(Sprites::UpdateGroup)
-pandas.extend(Sprites::DepthSortGroup)
-
-# Create the SDL window
-screen = Screen.set_mode([320,240])
-screen.title = "Rubygame test"
-screen.show_cursor = false;
 
 # Create the very cute panda objects!
 panda1 = SpinnyPanda.new(100,50)
 panda2 = ExpandaPanda.new(150,50)
 panda3 = WobblyPanda.new(200,50,0.5)
 
+# Set their depths. This affects which one appears in front
+# of the other in case they overlap.
 panda1.depth = 0        # in between the others
 panda2.depth = 10       # behind both of the others
 panda3.depth = -10      # in front of both of the others
 
-# Put the pandas in a sprite group
+
+
+
+###############
+# PANDA GROUP #
+###############
+
+
+# Create a spritegroup to manage the pandas.
+pandas = Sprites::Group.new
+pandas.extend(Sprites::UpdateGroup)
+pandas.extend(Sprites::DepthSortGroup)
+
+# Add the pandas to the group.
 pandas.push(panda1,panda2,panda3)
 
-# Make the background surface
-background = Surface.new(screen.size)
 
-# Filling with colors in a variety of ways
-background.fill( Color::ColorRGB.new([0.1, 0.2, 0.35]) )
-background.fill( :black, [70,120,80,80] )
-background.fill( "dark red", [80,110,80,80] )
+# Extend the pandas group with event hooks.
+class << pandas
+	include EventHandler::HasEventHandler
 
-# Create and test a new surface
-a = Surface.new([100,100])
+	# Draw all the sprites and refresh
+	# those parts of the screen
+	def do_draw( event )
+		dirty_rects = draw( event.screen )
+		event.screen.update_rects(dirty_rects)
+	end
 
-# Draw a bunch of shapes on the new surface to try out the drawing module
-a.fill([70,70,255])
-rect1 = Rect.new([3,3,94,94])
-a.fill([40,40,1500],rect1)
-a.draw_box_s([30,30],[70,70],[0,0,0])
-a.draw_box([31,31],[69,69],[255,255,255])
-a.draw_circle_s([50,50],10,[100,150,200])
-# Two diagonal white lines, the right anti-aliased, the left not.
-a.draw_line([31,69],[49,31],[255,255,255])
-a.draw_line_a([49,31],[69,69],[255,255,255])
-# Finally, copy this interesting surface onto the background image 
-a.blit(background,[50,50],[0,0,90,80])
-
-# Draw some shapes on the background for fun
-# ... a filled pentagon with a lighter border
-background.draw_polygon_s(\
-	[[50,150],[100,140],[150,160],[120,180],[60,170]],\
-	[100,100,100])
-background.draw_polygon_a(\
-	[[50,150],[100,140],[150,160],[120,180],[60,170]],\
-	[200,200,200])
-# ... a pepperoni pizza!! (if you use your imagination...)
-background.draw_arc_s([250,200],34,[210,150],[180,130,50])
-background.draw_arc_s([250,200],30,[210,150],[230,180,80])
-background.draw_circle_s( [240,180], 4, :dark_red )
-background.draw_circle_s( [265,185], 4, :dark_red )
-background.draw_circle_s( [258,200], 4, :dark_red )
-background.draw_circle_s( [240,215], 4, :dark_red )
-background.draw_circle_s( [260,220], 4, :dark_red )
-
-# _Try_ to make an anti-aliased, filled ellipse, but it doesn't work well.
-# If you look closely at the white ellipse, you can see that it isn't
-# AA on the left and right side, and there are some black specks on the top
-# and bottom where the two ellipses don't quite match.
-background.draw_ellipse_s([200,150],[30,25], :beige )
-background.draw_ellipse_a([200,150],[30,25], :beige )
-
-# Let's make some labels
-require "rubygame/sfont"
-sfont = SFont.new( Surface["term16.png"] )
-sfont.render("Arrow keys move the spinning panda!").blit(background,[10,10])
-
-TTF.setup()
-ttfont_path = File.join(File.dirname(__FILE__),"FreeSans.ttf")
-ttfont = TTF.new( ttfont_path, 20 )
-ttfont.render("This is some TTF text!",true,[250,250,250]).blit(background,[20,200])
-
-
-# Create another surface to test transparency blitting
-b = Surface.new([200,50])
-b.fill([150,20,40])
-b.set_alpha(123)# approx. half transparent
-b.blit(background,[20,40])
-background.blit(screen,[0,0])
-
-# Refresh the screen once. During the loop, we'll use 'dirty rect' updating
-# to refresh only the parts of the screen that have changed.
-screen.update()
-
-if Joystick.num_joysticks > 0
-	Joystick.new(0)  # So that joystick events will appear on the queue
-end
-
-update_time = 0
-framerate = 0
-
-catch(:rubygame_quit) do
-	loop do
-		queue.each do |event|
-			case event
-			when KeyDownEvent
-				case event.key
-				when K_ESCAPE
-					throw :rubygame_quit 
-				when K_Q
-					throw :rubygame_quit 
-				when K_UP
-					panda1.vy = -1
-				when K_DOWN
-					panda1.vy = 1
-				when K_LEFT
-					panda1.vx = -1
-				when K_RIGHT
-					panda1.vx = 1
-				when K_S
-					$smooth = !$smooth
-					puts "#{$smooth?'En':'Dis'}abling smooth scale/rotate."
-				else
-					print "%s"%[event.string]
-				end
-			when KeyUpEvent
-				case event.key
-				when K_UP
-					panda1.vy = 0
-				when K_DOWN
-					panda1.vy = 0
-				when K_LEFT
-					panda1.vx = 0
-				when K_RIGHT
-					panda1.vx = 0
-				end
-			when ActiveEvent
-				# ActiveEvent appears when the window gains or loses focus.
-				# This helps to ensure everything is refreshed after the Rubygame
-				# window has been covered up by a different window.
-				screen.update()
-			when QuitEvent
-				throw :rubygame_quit
-			when MouseDownEvent
-				puts "click: [%d,%d]"%event.pos
-			when JoyDownEvent
-				case event.button
-				when 4; panda1.speed = 80
-				when 5; panda2.speed = 80
-				end
-				#puts "jdown: %d"%[event.button]
-			when JoyUpEvent
-				case event.button
-				when 4; panda1.speed = 40
-				when 5; panda2.speed = 40
-				end
-				#puts "jup: %d"%[event.button]
-			when JoyAxisEvent
-				# max = 32767
-				case(event.axis)
-				when 0; panda1.vx = event.value / 32767.0
-				when 1; panda1.vy = event.value / 32767.0
-				when 2; panda2.vx = event.value / 32767.0
-				when 3; panda2.vy = event.value / 32767.0
-				end
-				#puts "jaxis: %d %d"%[event.axis,event.value]
-			end
-		end
-
-		pandas.undraw(screen,background)
-		pandas.update(update_time)
-		dirty_rects = pandas.draw(screen)
-		screen.update_rects(dirty_rects)
-
-		update_time = clock.tick()
-		unless framerate == clock.framerate
-			framerate = clock.framerate
-			screen.title = "Rubygame test [%d fps]"%framerate
-		end
+	# Erase the sprites from the screen by
+	# drawing over them with the background.
+	def do_undraw( event )
+		undraw( event.screen, event.background )
 	end
 end
 
-puts "Quitting!"
+pandas.make_magic_hooks( ClockTicked   => :update,
+                         DrawSprites   => :do_draw,
+                         UndrawSprites => :do_undraw )
+
+
+
+##########
+# SCREEN #
+##########
+
+
+# Create the SDL window
+screen = Screen.set_mode([320,240])
+screen.title = "Rubygame test"
+screen.show_cursor = false;
+
+
+
+
+###############
+# BACKGROUND  #
+###############
+
+
+# Make the background surface. We'll draw on this, then blit (copy) it
+# onto the screen. We'll also use it as the background for "erasing"
+# the pandas from their old positions each frame.
+background = Surface.new( screen.size )
+
+# Fill the background with a nice blue color.
+background.fill( Color::ColorRGB.new([0.1, 0.2, 0.35]) )
+
+
+# Render instructions with TTF (TrueType Font)
+TTF.setup()
+ttfont_path = File.join(File.dirname(__FILE__),"FreeSans.ttf")
+ttfont = TTF.new( ttfont_path, 14 )
+
+ttfont.render( "Use arrow keys or joystick to move pandas.",
+               true, [250,250,250] ).blit( background, [20,160] )
+
+ttfont.render( "Press escape or q to quit.",
+               true, [250,250,250] ).blit( background, [20,180] )
+
+
+# Now blit the background onto the screen and update the screen once.
+# During the loop, we'll use 'dirty rect' updating to refresh only the
+# parts of the screen that have changed.
+background.blit(screen,[0,0])
+screen.update()
+
+
+
+
+############################
+# EVENT HOOKS AND HANDLING #
+############################
+
+
+# Factory methods for creating event triggers
+
+# Returns a trigger that matches the released key event
+def released( key )
+	return KeyReleaseTrigger.new( key )
+end
+
+
+# Returns a trigger that matches the joystick axis event.
+# There are no built-in joystick event triggers in Rubygame
+# yet, sorry.
+def joyaxis( axis )
+	return AndTrigger.new( InstanceOfTrigger.new( JoystickAxisMoved ),
+	                       AttrTrigger.new(:joystick_id => 0,
+	                                       :axis => axis))
+end
+
+
+# Returns a trigger that matches the joystick button press event.
+def joypressed( button )
+	return AndTrigger.new( InstanceOfTrigger.new( JoystickButtonPressed ),
+	                       AttrTrigger.new(:joystick_id => 0,
+	                                       :button => button))
+end
+
+
+# Returns a trigger that matches the joystick button press event.
+def joyreleased( button )
+	return AndTrigger.new( InstanceOfTrigger.new( JoystickButtonReleased ),
+	                       AttrTrigger.new(:joystick_id => 0,
+	                                       :button => button))
+end
+
+
+#######################
+# PANDA 1 EVENT HOOKS #
+#######################
+
+hooks = {
+	# Start moving when an arrow key is pressed
+	:up    =>  proc { |owner, event| owner.vy = -1 },
+	:down  =>  proc { |owner, event| owner.vy =  1 },
+	:left  =>  proc { |owner, event| owner.vx = -1 },
+	:right =>  proc { |owner, event| owner.vx =  1 },
+
+	# Stop moving when the arrow key is released
+	released( :up    ) =>  proc { |owner, event| owner.vy = 0 },
+	released( :down  ) =>  proc { |owner, event| owner.vy = 0 },
+	released( :left  ) =>  proc { |owner, event| owner.vx = 0 },
+	released( :right ) =>  proc { |owner, event| owner.vx = 0 },
+
+	# Move according to how far the joystick axis is moved
+	joyaxis( 0 ) =>  proc { |owner, event| owner.vx = event.value },
+	joyaxis( 1 ) =>  proc { |owner, event| owner.vy = event.value },
+
+	# Fast speed when button is pressed, normal speed when released
+	joypressed(  4 ) => proc { |owner, event| owner.speed *= 2.0 },
+	joyreleased( 4 ) => proc { |owner, event| owner.speed *= 0.5 }
+}
+
+panda1.make_magic_hooks( hooks )
+
+
+#######################
+# PANDA 2 EVENT HOOKS #
+#######################
+
+hooks = {
+	# Move according to how far the joystick axis is moved
+	joyaxis( 2 ) =>  proc { |owner, event| owner.vx = event.value },
+	joyaxis( 3 ) =>  proc { |owner, event| owner.vy = event.value },
+
+	# Fast speed when button is pressed, normal speed when released
+	joypressed(  5 ) => proc { |owner, event| owner.speed *= 2.0 },
+	joyreleased( 5 ) => proc { |owner, event| owner.speed *= 0.5 }
+}
+
+panda2.make_magic_hooks( hooks )
+
+
+
+
+##############
+# GAME CLASS #
+##############
+
+
+# The Game class helps organize thing. It takes events
+# from the queue and handles them, sometimes performing
+# its own action (e.g. Escape key = quit), but also
+# passing the events to the pandas to handle.
+#
+class Game
+	include EventHandler::HasEventHandler
+
+	attr_reader :clock, :queue
+
+	def initialize( screen, background )
+
+		@screen = screen
+		@background = background
+
+		setup_clock()
+		setup_queue()
+		setup_event_hooks()
+
+	end
+
+
+	# The "main loop". Repeat the #step method
+	# over and over and over until the user quits.
+	def go
+		catch(:quit) do
+			loop do
+				step
+			end
+		end
+	end
+
+
+	# Register the object to receive all events.
+	# Events will be passed to the object's #handle method.
+	def register( *objects )
+		objects.each do |object|
+			append_hook( :owner   => object,
+									 :trigger => YesTrigger.new,
+									 :action  => MethodAction.new(:handle) )
+		end
+	end
+
+
+	private
+
+
+	# Quit the game
+	def quit
+		puts "Quitting!"
+		throw :quit
+	end
+
+
+	# Create a new Clock to manage the game framerate
+	# so it doesn't use 100% of the CPU
+	def setup_clock
+		@clock = Clock.new()
+		@clock.target_framerate = 50
+	end
+
+
+	# Set up the event hooks to perform actions in
+	# response to certain events.
+	def setup_event_hooks
+		hooks = {
+			:escape  =>  :quit,
+			:q       =>  :quit,
+			:s       =>  :toggle_smooth,
+
+			QuitRequested     =>  :quit,
+
+			# Tell the user where they clicked.
+			MousePressed      => proc { |owner, event|
+			                       puts "click: [%d,%d]"%event.pos
+			                     },
+
+			# These help to ensure everything is refreshed after the
+			# Rubygame window has been covered up by a different window.
+			InputFocusGained  => :update_screen,
+			WindowUnminimized => :update_screen,
+			WindowExposed     => :update_screen,
+
+			# Refresh the window title.
+			ClockTicked       => :update_framerate
+		}
+
+		make_magic_hooks( hooks )
+	end
+
+
+	# Create an EventQueue to take events from the keyboard, etc.
+	# The events are taken from the queue and passed to objects
+	# as part of the main loop.
+	def setup_queue
+		# Create EventQueue with new-style events (added in Rubygame 2.4)
+		@queue = EventQueue.new()
+		@queue.enable_new_style_events
+
+		# Don't care about mouse movement, so let's ignore it.
+		@queue.ignore = [MouseMoved]
+	end
+
+
+	# Do everything needed for one frame.
+	def step
+		@queue << UndrawSprites.new( @screen, @background )
+		@queue.fetch_sdl_events
+		@queue << DrawSprites.new( @screen )
+		@queue << ClockTicked.new( $game.clock.tick,
+		                           $game.clock.framerate )
+		@queue.each do |event|
+			handle( event )
+		end
+	end
+
+
+	# Toggle smooth effects
+	def toggle_smooth
+		$smooth = !$smooth
+		puts "#{$smooth?'En':'Dis'}abling smooth scale/rotate."
+	end
+
+
+	# Update the window title to display the current framerate.
+	def update_framerate( event )
+		unless @old_framerate == event.framerate
+			@screen.title = "Rubygame test [%d fps]"%event.framerate
+			@old_framerate = event.framerate
+		end
+	end
+
+
+	# Refresh the whole screen.
+	def update_screen
+		@screen.update()
+	end
+
+end
+
+
+$game = Game.new( screen, background )
+
+# Register the pandas to receive events.
+$game.register( pandas, panda1, panda2 )
+
+# Start the main game loop. It will repeat forever
+# until the user quits the game!
+$game.go
+
+# Make sure everything is cleaned up properly.
 Rubygame.quit()

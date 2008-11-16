@@ -77,6 +77,79 @@ static void RBGM_JoystickClose(SDL_Joystick *joy)
 }
 
 
+
+/* 
+ *  call-seq:
+ *    Joystick.activate_all()  ->  [joystick1, joystick2, ...]
+ *
+ *  Activate all joysticks on the system, equivalent to calling
+ *  Joystick.new for every joystick available. This will allow
+ *  joystick-related events to be sent to the EventQueue for
+ *  all joysticks.
+ *  
+ *  Returns::  Array of zero or more Joysticks.
+ *
+ */
+VALUE rbgm_joystick_activateall(VALUE module)
+{
+	/* Initialize if it isn't already. */
+	if( !SDL_WasInit(SDL_INIT_JOYSTICK) )
+	{
+		if( SDL_Init(SDL_INIT_JOYSTICK) != 0 )
+		{
+			rb_raise( eSDLError, "Could not initialize SDL joystick." );
+		}
+	}
+
+	int num_joysticks = SDL_NumJoysticks();
+	int i = 0;
+
+	/* Collect Joystick instances in an Array. */
+	VALUE joysticks = rb_ary_new();
+
+	for(; i < num_joysticks; ++i )
+	{
+		rb_ary_push( joysticks, rbgm_joystick_new(module, INT2NUM(i)) );
+	}
+
+	return joysticks;
+}
+
+
+/* 
+ *  call-seq:
+ *    Joystick.deactivate_all()
+ *
+ *  Deactivate all joysticks on the system. This will stop all
+ *  joystick-related events from being sent to the EventQueue.
+ *
+ */
+VALUE rbgm_joystick_deactivateall(VALUE module)
+{
+	/* Return right away if it wasn't active. */
+	if( !SDL_WasInit(SDL_INIT_JOYSTICK) )
+	{
+		return Qnil;
+	}
+
+	int num_joysticks = SDL_NumJoysticks();
+	int i = 0;
+	SDL_Joystick *joy;
+
+	for(; i < num_joysticks; ++i )
+	{
+		joy = SDL_JoystickOpen(i);
+		if(joy != NULL)
+		{
+			SDL_JoystickClose( joy );
+		}
+	}
+
+	return Qnil;
+}
+
+
+
 /* 
  *  call-seq:
  *    new( n )  ->  Joystick
@@ -206,25 +279,38 @@ VALUE rbgm_joystick_numbuttons( VALUE self )
 /*  Document-class: Rubygame::Joystick
  *
  *  The Joystick class interfaces with joysticks, gamepads, and other
- *  similar hardware devices, commonly used to play games. Each joystick can
- *  offer 0 or more #axes, #balls, #hats, and/or #buttons.
+ *  similar hardware devices used to play games. Each joystick may
+ *  have zero or more #axes, #balls, #hats, and/or #buttons.
  *
  *  After a Joystick object is successfully created, events for that
- *  Joystick will begin appearing on the Queue, reporting any state change
- *  that occurs. Some examples of state changes are a button being pressed
- *  or released, or a control stick being moved (resulting in one or more axes
- *  being changed).
+ *  Joystick will begin appearing on the EventQueue when a button is
+ *  pressed or released, a control stick is moved, etc.
  *
- *  The full list of Joystick-related events is as follows:
- *  - JoyAxisEvent
- *  - JoyBallEvent
- *  - JoyHatEvent
- *  - JoyDownEvent
- *  - JoyUpEvent
+ *  You can use Joystick.activate_all to start receiving events for
+ *  all joysticks (equivalent to creating them all individually with
+ *  Joystick.new). You can use Joystick.deactivate_all to stop
+ *  receiving events for all joysticks.
  *
- *  In future versions of Rubygame, it will be possible to directly query
- *  the state each joystick. However, it is recommended that you use the
- *  event system for most cases, so you might as well get used to it!
+ *  As of Rubygame 2.4, these are the current, "new-style" Joystick
+ *  event classes:
+ *
+ *  * Events::JoystickAxisMoved
+ *  * Events::JoystickButtonPressed
+ *  * Events::JoystickButtonReleased
+ *  * Events::JoystickBallMoved
+ *  * Events::JoystickHatMoved
+ *
+ *  These old Joystick-related events are deprecated and will be
+ *  removed in Rubygame 3.0:
+ *
+ *  * JoyAxisEvent
+ *  * JoyBallEvent
+ *  * JoyHatEvent
+ *  * JoyDownEvent
+ *  * JoyUpEvent
+ *
+ *  For more information about "new-style" events, see
+ *  EventQueue.enable_new_style_events.
  *
  */
 void Rubygame_Init_Joystick()
@@ -236,6 +322,9 @@ void Rubygame_Init_Joystick()
 	cJoy = rb_define_class_under(mRubygame,"Joystick",rb_cObject);
 	rb_define_singleton_method(cJoy,"num_joysticks",rbgm_joy_numjoysticks,0);
 	rb_define_singleton_method(cJoy,"get_name",rbgm_joy_getname,1);
+
+	rb_define_singleton_method(cJoy,"activate_all",rbgm_joystick_activateall,0);
+	rb_define_singleton_method(cJoy,"deactivate_all",rbgm_joystick_deactivateall,0);
 
 	rb_define_singleton_method(cJoy,"new",rbgm_joystick_new,1);
 	rb_define_method(cJoy,"index",rbgm_joystick_index,0);

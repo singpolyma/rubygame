@@ -1,5 +1,93 @@
 = NEWS
 
+== Rubygame 2.4.0
+
+Release focus: Events.
+
+=== Features
+
+- New Events module, with a suite of new and revised event classes.
+  The new classes offer full functionality as the older classes.
+
+  - Use Rubygame::EventQueue#enable_new_style_events to enable the new
+    event classes. This will become the default in Rubygame 3.0.
+
+  - Uses symbols instead of integer constants for keyboard keys and
+    mouse buttons (e.g. :a, :space, :mouse_left, :mouse_right).
+
+  - Better unicode / international keyboard text input support.
+    (See Rubygame::Events::KeyPressed#string)
+
+  - More natural and memorable class naming scheme.
+
+- New hook-based event handling system.
+  (NOTE: Requires use of the new event classes.)
+
+  - Rubygame::EventHandler class.
+    EventHandler holds many EventHook instances. It handles each event
+    by passing it to matching hooks.
+
+  - Rubygame::EventHandler::HasEventHandler mixin module.
+    Include this in your custom classes to add easy event handling
+    and event hook creation abilities.
+
+  - Rubygame::EventHook class.
+    
+  - Rubygame::EventActions module.
+    Has several pre-made event action classes to use with EventHook.
+
+  - Rubygame::EventTriggers module.
+    Has several pre-made event trigger classes to use with EventHook.
+
+- Added Rubygame.enable_key_repeat and Rubygame.disable_key_repeat.
+  Thanks to atiaxi for this new feature!
+
+=== Fixes
+
+- Fixed: EventQueue#peek_each didn't yield any events.
+
+- Fixed: Segfault in extract_rgba_u8_as_u8() on x86_64 systems.
+  Thanks to ElCuGo for this fix!
+
+- Fixed: Several "cast from pointer" warnings on x86_64 systems.
+
+- Fixed: Build system didn't correctly compile with debug symbols
+  when using "debug" option.
+
+- Fixed: Surface#get_at didn't work correctly for 8-bit Surfaces.
+
+- Fixed: Ftor.new_from_to would always complain about "wrong number
+  of arguments". Thanks to atiaxi for this fix!
+
+=== Other Stuff
+
+- The panda demo (samples/demo_rubygame.rb) has been renovated to
+  demonstrate how to use the new features, and to be a better example.
+
+- Old event classes are deprecated and will be removed in 3.0.
+  - ActiveEvent      (use Events::InputFocusGained,
+                          Events::InputFocusLost,
+                          Events::MouseFocusGained,
+                          Events::MouseFocusLost,
+                          Events::WindowMinimized, and
+                          Events::WindowUnminimized)
+  - ExposeEvent      (use Events::WindowExposed)
+  - JoyAxisEvent     (use Events::JoystickAxisMoved)
+  - JoyBallEvent     (use Events::JoystickBallMoved)
+  - JoyDownEvent     (use Events::JoystickButtonPressed)
+  - JoyHatEvent      (use Events::JoystickHatMoved)
+  - JoyUpEvent       (use Events::JoystickButtonReleased)
+  - KeyDownEvent     (use Events::KeyPressed)
+  - KeyUpEvent       (use Events::KeyReleased)
+  - MouseDownEvent   (use Events::MousePressed)
+  - MouseMotionEvent (use Events::MouseMoved)
+  - MouseUpEvent     (use Events::MouseReleased)
+  - QuitEvent        (use Events::QuitRequested)
+  - ResizeEvent      (use Events::WindowResized)
+
+
+
+
 == Rubygame 2.3.0
 
 Release focus: Media resources.
