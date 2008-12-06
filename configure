@@ -65,7 +65,8 @@ if [ "." != "$GEM." ]; then
 		GEMINSTALL="$GEM install pkg/rubygame-$VERSION.gem"
 	else
 		#GEMINSTALL="cp xgame-$VERSION.gem '\$(prefix)/$INSTALLDIR/xgame.gem'"
-		GEMINSTALL="mkdir -p '\$(prefix)/../tmp/'; cp pkg/rubygame-$VERSION.gem '\$(prefix)/../tmp/rubygame.gem'" # XXX: This assumes prefix is only one level deeper than we want... hmm...
+		#GEMINSTALL="mkdir -p '\$(prefix)/../tmp/'; cp pkg/rubygame-$VERSION.gem '\$(prefix)/../tmp/rubygame.gem'" # XXX: This assumes prefix is only one level deeper than we want... hmm...
+		GEMINSTALL=""
 	fi
 fi
 
