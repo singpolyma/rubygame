@@ -22,7 +22,7 @@ done
 
 # Verify presence of ruby
 RUBY=`which ruby` # XXX: we're assuming which is in PATH
-if [ "." = "$RUBY." ]; then
+if [ $? -ne 0 ]; then
 	echo "ERROR: ruby not found" 1>&2
 	exit 1
 else
@@ -30,8 +30,8 @@ else
 fi
 
 # Verify ruby version
-RUBYMAJOR=`$RUBY -v | cut -d' ' -f2 | cut -b1`
-RUBYMINOR=`$RUBY -v | cut -d' ' -f2 | cut -b3`
+RUBYMAJOR=`"$RUBY" -v | cut -d' ' -f2 | cut -b1`
+RUBYMINOR=`"$RUBY" -v | cut -d' ' -f2 | cut -b3`
 if [ $RUBYMAJOR -lt 1 -o $RUBYMINOR -lt 8 ]; then
 	echo "ERROR: ruby version $RUBYMAJOR.$RUBYMINOR.x too low, need at least 1.8.0" 1>&2
 	exit 1
@@ -40,11 +40,11 @@ else
 fi
 
 if [ "$PREFIX." = "." -o "$PREFIX" = "/usr/local" ]; then
-	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitedir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
-	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitearchdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitedir'].sub(Regexp.new('^$PREFIX\/?'),'')" | "$RUBY"`
+	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['sitearchdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | "$RUBY"`
 else
-	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['rubylibdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
-	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['archdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | $RUBY`
+	LIBDIR=`echo "require 'rbconfig'; puts Config::CONFIG['rubylibdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | "$RUBY"`
+	ARCHDIR=`echo "require 'rbconfig'; puts Config::CONFIG['archdir'].sub(Regexp.new('^$PREFIX\/?'),'')" | "$RUBY"`
 fi
 
 # FIXME: Such a hack... really should translate Rakefile
@@ -59,10 +59,10 @@ GEMINSTALL=""
 GEMREMOVE=""
 GEM=`which gem` # XXX: we're assuming which is in PATH
 if [ "." != "$GEM." ]; then
-	GEMBUILD="$RAKE gem"
-	GEMREMOVE="$GEM uninstall rubygame"
+	GEMBUILD="\"$RAKE\" gem"
+	GEMREMOVE="\"$GEM\" uninstall rubygame"
 	if [ "." = "$PACKAGING." ]; then
-		GEMINSTALL="$GEM install pkg/rubygame-$VERSION.gem"
+		GEMINSTALL="\"$GEM\" install pkg/rubygame-$VERSION.gem"
 	else
 		#GEMINSTALL="cp xgame-$VERSION.gem '\$(prefix)/$INSTALLDIR/xgame.gem'"
 		#GEMINSTALL="mkdir -p '\$(prefix)/../tmp/'; cp pkg/rubygame-$VERSION.gem '\$(prefix)/../tmp/rubygame.gem'" # XXX: This assumes prefix is only one level deeper than we want... hmm...
@@ -74,11 +74,11 @@ cat 1>Makefile <<EOT
 prefix=$PREFIX
 all: build gem
 build:
-	$RAKE build
+	"$RAKE" build
 gem: build
 	$GEMBUILD
 clean:
-	$RAKE clean
+	"$RAKE" clean
 distclean: clean
 	rm -rf pkg/
 	rm -f Makefile
@@ -86,6 +86,6 @@ install:
 	RUBYLIBDIR=\$(prefix)/$LIBDIR RUBYARCHDIR=\$(prefix)/$ARCHDIR $RAKE install
 	$GEMINSTALL
 uninstall:
-	$RAKE uninstall
+	"$RAKE" uninstall
 	$GEMREMOVE
 EOT
